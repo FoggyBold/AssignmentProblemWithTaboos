@@ -2,7 +2,7 @@
 {
     public sealed record HungarianMethodDto
     {
-        public int Row { get; init; }
-        public int Column { get; init; }
+        public double Weight { get; init; }
+        public List<Appointment> Appointments { get; init; }
     }
 }

@@ -4,41 +4,54 @@ namespace AssignmentProblemWithTaboos.Algorithms
 {
     public static class HungarianMethod
     {
-        public static List<List<HungarianMethodDto>> Execute(double[,] matrix, bool[,] taboos)
+        public static List<HungarianMethodDto> Execute(double[,] matrix, bool[,] taboos)
         {
             //Проверка на совместимось
             var compatibilityCheck = CompatibilityCheck(matrix, taboos);
             if (!compatibilityCheck)
                 throw new ArgumentException("Задача не совместна!");
 
+            var matrixForWork = CopyMatrix(matrix);
+
             //Применение запретов
-            ApplicationTaboos(matrix, taboos);
+            ApplicationTaboos(matrixForWork, taboos);
             //Редукция по строкам
-            ReductionByLine(matrix);
+            ReductionByLine(matrixForWork);
             //Редукция по столбцам
-            ReductionByColumn(matrix);
-            var matching = FindingMaxMatchingInBipartiteGraphAlgorithm.Execute(matrix);
-            while (matching.Max(item => item.Count) != matrix.GetLength(0)) 
+            ReductionByColumn(matrixForWork);
+            var matching = FindingMaxMatchingInBipartiteGraphAlgorithm.Execute(matrixForWork);
+            while (matching.Max(item => item.Count) != matrixForWork.GetLength(0)) 
             {
                 var maxMatching = matching.First(m => m.Count == matching.Max(item => item.Count));
-                if (maxMatching.Count != matrix.GetLength(0))
+                if (maxMatching.Count != matrixForWork.GetLength(0))
                 {
-                    ApplyHungarianMethod(matrix, maxMatching);
+                    ApplyHungarianMethod(matrixForWork, maxMatching);
                 }
 
-                matching = FindingMaxMatchingInBipartiteGraphAlgorithm.Execute(matrix);
+                matching = FindingMaxMatchingInBipartiteGraphAlgorithm.Execute(matrixForWork);
             }
             
-            List<List<HungarianMethodDto>> result = matching
-                .Where(item => item.Count == matrix.GetLength(0))
-                .Select(item => item.Select(i => new HungarianMethodDto
+            List<List<Appointment>> allAppointments = matching
+                .Where(item => item.Count == matrixForWork.GetLength(0))
+                .Select(item => item.Select(i => new Appointment
                     {
                         Row = i.Start,
                         Column = i.End
                     }).ToList())
                 .ToList();
 
-            return result;
+            List<HungarianMethodDto> result = new();
+            foreach(var appointments in allAppointments)
+            {
+                double record = 0;
+                foreach(var appointment in appointments)
+                {
+                    record += matrix[appointment.Row, appointment.Column];
+                }
+                result.Add(new HungarianMethodDto { Appointments = appointments, Weight = record });
+            }
+
+            return result.Where(item => item.Weight == result.Min(r => r.Weight)).ToList();
         }
 
         private static void ApplyHungarianMethod(double[,] matrix, List<StepDto> matchings)
@@ -48,18 +61,20 @@ namespace AssignmentProblemWithTaboos.Algorithms
 
             var selectedRow = -1;
             var selectedColumn = -1;
-            for (var i = 0; i < matrix.GetLength(0) && selectedRow == -1; i++)
+
+            List<int> linesWithoutIndependentZeros = SearchLinesWithoutIndependentZeros(matrix, matchings);
+            foreach(var line in linesWithoutIndependentZeros)
             {
                 for (var j = 0; j < matrix.GetLength(1) && selectedRow == -1; j++)
                 {
-                    if(matrix[i, j] == 0 && !matchings.Any(item => item.Start == i && item.End == j))
+                    if (matrix[line, j] == 0)
                     {
-                        selectedRow = i;
+                        selectedRow = line;
                         selectedColumn = j;
                     }
                 }
             }
-
+            
             if (selectedRow == -1 && selectedColumn == -1)
                 return;
 
@@ -116,9 +131,9 @@ namespace AssignmentProblemWithTaboos.Algorithms
             {
                 for (var j = 0; j < matrix.GetLength(1); j++)
                 {
-                    if(!(selectedRows.Contains(i) && !selectedColumns.Contains(j) || !selectedRows.Contains(i) && selectedColumns.Contains(j)))
+                    if(selectedRows.Contains(i) && !selectedColumns.Contains(j) || !selectedRows.Contains(i) && selectedColumns.Contains(j))
                     {
-                        if(selectedRows.Contains(i) && selectedColumns.Contains(j))
+                        if(!selectedRows.Contains(i) && selectedColumns.Contains(j))
                         {
                             matrix[i, j] += minInNotSelectedItems;
                         }
@@ -143,6 +158,9 @@ namespace AssignmentProblemWithTaboos.Algorithms
                     if(matchings.Any(item => item.Start == i && item.End == j))
                         hasIndependentZeros = true;
                 }
+                
+                if(!hasIndependentZeros)
+                    res.Add(i);
             }
 
             return res;
@@ -236,6 +254,19 @@ namespace AssignmentProblemWithTaboos.Algorithms
             var matching = FindingMaxMatchingInBipartiteGraphAlgorithm.Execute(taboosMatrix);
 
             return matching.Any(item => item.Count >= matrix.GetLength(1));
+        }
+
+        private static double[,] CopyMatrix(double[,] matrix)
+        {
+            double[,] newMatrix = new double[matrix.GetLength(0), matrix.GetLength(1)];
+            for (var i = 0; i < matrix.GetLength(0); i++)
+            {
+                for (var j = 0; j < matrix.GetLength(1); j++)
+                {
+                    newMatrix[i, j] = matrix[i, j];
+                }
+            }
+            return newMatrix;
         }
     }
 }
